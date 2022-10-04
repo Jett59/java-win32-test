@@ -1,4 +1,4 @@
 open module app.cleancode.java19Tests {
   exports app.cleancode.java19Test;
-  requires windowsBindings;
+  requires app.cleancode.bindings.win32;
 }

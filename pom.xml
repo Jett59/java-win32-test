@@ -11,12 +11,10 @@
   </properties>
   <dependencies>
   	<dependency>
-  		<groupId>app.cleancode</groupId>
-  		<artifactId>windowsBindings</artifactId>
-  		<version>1.0.0</version>
-  		<scope>system</scope>
-  		<systemPath>${project.basedir}/libs/windowsBindings.jar</systemPath>
-  	</dependency>
+  <groupId>app.cleancode</groupId>
+  <artifactId>win32-bindings</artifactId>
+  <version>0.0.2</version>
+</dependency>
   </dependencies>
   <build>
   	<plugins>
