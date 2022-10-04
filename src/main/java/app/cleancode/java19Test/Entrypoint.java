@@ -34,6 +34,14 @@ public class Entrypoint {
 
   public static long windowEventHandler(MemoryAddress windowAddress, int message, long param1,
       long param2) {
+    // Apparently we can't use a switch here because cases have to be constant expressions or
+    // something. So we do the next best thing (which is the worst thing.)
+    System.out.println(message);
+    if (message == WINDOWS_h.WM_CLOSE()) {
+      WINDOWS_h.DestroyWindow(windowAddress);
+      WINDOWS_h.PostQuitMessage(0);
+      return 0;
+    }
     return WINDOWS_h.DefWindowProcA(windowAddress, message, param1, param2);
   }
 
@@ -62,7 +70,7 @@ public class Entrypoint {
         String message = getLastErrorMessage();
         throw new RuntimeException("Failed to create the window: %s".formatted(message));
       }
-      long showResult = WINDOWS_h.ShowWindow(window, 0);
+      long showResult = WINDOWS_h.ShowWindow(window, WINDOWS_h.SW_NORMAL());
       if (showResult != 0) {
         String message = getLastErrorMessage();
         throw new RuntimeException("Failed to show the window: %s".formatted(message));
