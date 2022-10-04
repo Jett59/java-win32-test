@@ -7,6 +7,7 @@ import java.lang.foreign.MemorySession;
 import java.lang.foreign.SegmentAllocator;
 import java.lang.foreign.ValueLayout;
 import app.cleancode.bindings.windows.MSG;
+import app.cleancode.bindings.windows.PAINTSTRUCT;
 import app.cleancode.bindings.windows.WINDOWS_h;
 import app.cleancode.bindings.windows.WNDCLASS;
 import app.cleancode.bindings.windows.WNDPROC;
@@ -36,11 +37,21 @@ public class Entrypoint {
       long param2) {
     // Apparently we can't use a switch here because cases have to be constant expressions or
     // something. So we do the next best thing (which is the worst thing.)
-    System.out.println(message);
     if (message == WINDOWS_h.WM_CLOSE()) {
       WINDOWS_h.DestroyWindow(windowAddress);
       WINDOWS_h.PostQuitMessage(0);
       return 0;
+    } else if (message == WINDOWS_h.WM_PAINT()) {
+      try (MemorySession memorySession = MemorySession.openConfined()) {
+        SegmentAllocator allocator = SegmentAllocator.newNativeArena(memorySession);
+        var paintStruct = PAINTSTRUCT.allocate(allocator);
+        var hdc = WINDOWS_h.BeginPaint(windowAddress, paintStruct);
+        var selectedBrush = WINDOWS_h.CreateSolidBrush(0);
+        WINDOWS_h.FillRect(hdc, PAINTSTRUCT.rcPaint$slice(paintStruct),
+            selectedBrush);
+        WINDOWS_h.EndPaint(windowAddress, paintStruct);
+        return 0;
+      }
     }
     return WINDOWS_h.DefWindowProcA(windowAddress, message, param1, param2);
   }
@@ -48,6 +59,7 @@ public class Entrypoint {
   public static void main(String[] args) throws Throwable {
     System.loadLibrary("kernel32");
     System.loadLibrary("user32");
+    System.loadLibrary("gdi32");
     try (MemorySession memorySession = MemorySession.openConfined()) {
       SegmentAllocator allocator = SegmentAllocator.newNativeArena(memorySession);
       var windowClass = WNDCLASS.allocate(allocator);
