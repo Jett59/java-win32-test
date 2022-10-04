@@ -14,6 +14,18 @@ import app.cleancode.bindings.windows.WNDPROC;
 
 public class Entrypoint {
 
+  private static String getUtf16String(MemoryAddress address) {
+    String str = "";
+    char temp;
+    int offset = 0;
+    do {
+      temp = address.get(ValueLayout.JAVA_CHAR, offset);
+      str += temp;
+      offset += 2;
+    } while (temp != 0);
+    return str.substring(0, str.length() - 1);
+  }
+
   private static String getLastErrorMessage() {
     try (MemorySession memorySession = MemorySession.openConfined()) {
       MemorySegment messageAddressPointer = memorySession.allocate(ValueLayout.ADDRESS);
@@ -41,16 +53,29 @@ public class Entrypoint {
       WINDOWS_h.DestroyWindow(windowAddress);
       WINDOWS_h.PostQuitMessage(0);
       return 0;
-    } else if (message == WINDOWS_h.WM_PAINT()) {
+    } else if (message == WINDOWS_h.WM_CREATE()) {
       try (MemorySession memorySession = MemorySession.openConfined()) {
         SegmentAllocator allocator = SegmentAllocator.newNativeArena(memorySession);
-        var paintStruct = PAINTSTRUCT.allocate(allocator);
-        var hdc = WINDOWS_h.BeginPaint(windowAddress, paintStruct);
-        var selectedBrush = WINDOWS_h.CreateSolidBrush(0);
-        WINDOWS_h.FillRect(hdc, PAINTSTRUCT.rcPaint$slice(paintStruct),
-            selectedBrush);
-        WINDOWS_h.EndPaint(windowAddress, paintStruct);
-        return 0;
+        if (WINDOWS_h.AddClipboardFormatListener(windowAddress) != WINDOWS_h.TRUE()) {
+          String errorMessage = getLastErrorMessage();
+          WINDOWS_h.MessageBoxA(windowAddress, allocator.allocateUtf8String(errorMessage), NULL, 0);
+          return 1;
+        }
+      }
+    } else if (message == WINDOWS_h.WM_CLIPBOARDUPDATE()) {
+      WINDOWS_h.OpenClipboard(windowAddress);
+      try (MemorySession memorySession = MemorySession.openConfined()) {
+        SegmentAllocator allocator = SegmentAllocator.newNativeArena(memorySession);
+        MemoryAddress clipboardContentsPointer =
+            WINDOWS_h.GetClipboardData(WINDOWS_h.CF_UNICODETEXT());
+        if (clipboardContentsPointer == NULL) {
+          System.err.println("Could not get the contents of the clipboard as unicode");
+        } else {
+          String clipboardContents = getUtf16String(clipboardContentsPointer);
+          System.out.println(clipboardContents);
+        }
+      } finally {
+        WINDOWS_h.CloseClipboard();
       }
     }
     return WINDOWS_h.DefWindowProcA(windowAddress, message, param1, param2);
@@ -82,11 +107,11 @@ public class Entrypoint {
         String message = getLastErrorMessage();
         throw new RuntimeException("Failed to create the window: %s".formatted(message));
       }
-      long showResult = WINDOWS_h.ShowWindow(window, WINDOWS_h.SW_NORMAL());
-      if (showResult != 0) {
-        String message = getLastErrorMessage();
-        throw new RuntimeException("Failed to show the window: %s".formatted(message));
-      }
+      /*
+       * long showResult = WINDOWS_h.ShowWindow(window, WINDOWS_h.SW_NORMAL()); if (showResult != 0)
+       * { String message = getLastErrorMessage(); throw new
+       * RuntimeException("Failed to show the window: %s".formatted(message)); }
+       */
       var windowMessage = MSG.allocate(allocator);
       while (WINDOWS_h.GetMessageA(windowMessage, NULL, 0, 0) > 0) {
         WINDOWS_h.TranslateMessage(windowMessage);
